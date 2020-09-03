@@ -32,9 +32,9 @@ def plot_multiple(data):
     plt.legend([str(i) for i in range(len(data))])
     plt.show()
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     sample_size = 10000
-    window_size = 40
+    window_size = 15
     data = get_data("EURUSD30min.csv","Open")[:sample_size]
     mvg = movingaverage(data,window_size)
     expmvg = Expmovingaverage(data,100)

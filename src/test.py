@@ -1,17 +1,15 @@
 import torch
 import numpy as np
 
-
-
 class TwoLayer(torch.nn.Module):
     
     def __init__(self,D_in,H,D_out):
         torch.nn.Module.__init__(self)
         self.input_layer = torch.nn.Linear(D_in,H)
-        for j in range(100):
-            self.hidden_layer = torch.nn.Linear(H,H)
-            self.hidden_layer1 = torch.nn.Linear(H,H)
-            self.hidden_layer2 = torch.nn.Linear(H,H)
+        
+        self.hidden_layer = torch.nn.Linear(H,H)
+        self.hidden_layer1 = torch.nn.Linear(H,H)
+        self.hidden_layer2 = torch.nn.Linear(H,H)
         self.output_layer = torch.nn.Linear(H,D_out)
     
     def forward(self,input):
@@ -52,6 +50,8 @@ for i in range(1000):
     optim.step()
     if(i%200==0):
         print(pred,y)
+
+
 
 print(y)
 print(model(x))
