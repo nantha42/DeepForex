@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import tkinter
+import numpy as np
+from essential_functions import *
 from mpl_finance import candlestick_ohlc
 
 f = open("../Dataset/EURUSD30min.csv")
@@ -20,7 +22,7 @@ for i in range(800):
         last_open = g["Open"][i]
 _Points = 1e-5
 
-
+#lenght of bear = 14
 bear = [0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 bull = [0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 avg = 0
@@ -35,30 +37,38 @@ not_added = 0
 f = open("output.txt","w")
 
 highs = []
-for i in range(1,len(g["Open"])):
-    v =  (g["Open"][i] -g["Open"][i-1])/(1*_Points)
-    avg+= abs(v)
+vector = []
+avged_open = Expmovingaverage(g["Open"],10)
+print(np.array(avged_open).shape)
+# exit()
+for i in range(1,len(avged_open)):
+    v =  (avged_open[i] -avged_open[i-1])/(1*_Points)
     bu = bull.copy()
     be = bear.copy()
     p = 10
-    
     added = False
     for i in range(0,len(bull)):
         if abs(v) < p:
             if v > 0: bu[i] = 1
-            else: be[9-i] = 1
+            else: be[len(bear)-1-i] = 1
             a = be+bu
+            vector.append(np.argmax(a))
             f.writelines(str(a)+"\n")
             ans.append(a)
             added = True
             break
-
         p = p*1.5
     if(added==False):
         not_added +=1
         highs.append(v)
 f.close()
-
+print(vector[:100])
+print(set(vector))
+v=np.array(vector)
+plot(vector)
+v = v.reshape((len(vector),1))
+print(v.shape)
+np.save("../dataset/Eavg_open.npy",v)
 print("Very hight value",not_added)
 print(highs)
 fig,ax = plt.subplots()

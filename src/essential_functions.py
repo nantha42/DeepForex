@@ -24,20 +24,20 @@ def plot(data):
     plt.plot(data)
     plt.show()
 
-def plot_multiple(data):
+def plot_multiple(data,legend):
     fig,ax = plt.subplots()
     for line in data:
         print(line)
         plt.plot(list(range(len(line))),line)
-    plt.legend([str(i) for i in range(len(data))])
+    plt.legend(legend)
     plt.show()
 
 if __name__ == '__main__':
-    sample_size = 10000
+    sample_size = 20000
     window_size = 15
     data = get_data("EURUSD30min.csv","Open")[:sample_size]
     mvg = movingaverage(data,window_size)
-    expmvg = Expmovingaverage(data,100)
+    expmvg = Expmovingaverage(data,50)
     
     high_data = get_data("EURUSD30min.csv","High")[:sample_size]
     high_mvg = movingaverage(high_data,window_size)
@@ -45,4 +45,4 @@ if __name__ == '__main__':
     low_data = get_data("EURUSD30min.csv","Low")[:sample_size]
     low_mvg = movingaverage(low_data,window_size)
 
-    plot_multiple( [data,mvg,high_mvg,low_mvg,expmvg])
+    plot_multiple( [data,expmvg])

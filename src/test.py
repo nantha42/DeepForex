@@ -6,7 +6,6 @@ class TwoLayer(torch.nn.Module):
     def __init__(self,D_in,H,D_out):
         torch.nn.Module.__init__(self)
         self.input_layer = torch.nn.Linear(D_in,H)
-        
         self.hidden_layer = torch.nn.Linear(H,H)
         self.hidden_layer1 = torch.nn.Linear(H,H)
         self.hidden_layer2 = torch.nn.Linear(H,H)
