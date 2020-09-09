@@ -38,7 +38,8 @@ f = open("output.txt","w")
 
 highs = []
 vector = []
-avged_open = Expmovingaverage(g["Open"],10)
+# avged_open = Expmovingaverage(g["Open"],10)
+avged_open = g["Open"]
 print(np.array(avged_open).shape)
 # exit()
 for i in range(1,len(avged_open)):
@@ -62,7 +63,35 @@ for i in range(1,len(avged_open)):
         not_added +=1
         highs.append(v)
 f.close()
-print(vector[:100])
+f = open("../Dataset/EURUSD30min2015-17.csv")
+eu = pd.read_csv(f)
+
+ohlc = []
+g = eu
+avged_open = g["Open"]
+print(np.array(avged_open).shape)
+# exit()
+for i in range(1,len(avged_open)):
+    v =  (avged_open[i] -avged_open[i-1])/(1*_Points)
+    bu = bull.copy()
+    be = bear.copy()
+    p = 10
+    added = False
+    for i in range(0,len(bull)):
+        if abs(v) < p:
+            if v > 0: bu[i] = 1
+            else: be[len(bear)-1-i] = 1
+            a = be+bu
+            vector.append(np.argmax(a))
+            # f.writelines(str(a)+"\n")
+            ans.append(a)
+            added = True
+            break
+        p = p*1.5
+    if(added==False):
+        not_added +=1
+        highs.append(v)
+# print(vector[:100])
 print(set(vector))
 v=np.array(vector)
 plot(vector)

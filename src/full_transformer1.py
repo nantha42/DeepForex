@@ -1,5 +1,3 @@
-
-#moving average data
 from transformer import *
 from essential_functions import *
 from torch.utils.data import TensorDataset
@@ -29,10 +27,25 @@ def batchify(data, bsz):
     nbatch = data.size(0) // bsz
     data = data.narrow(0, 0, nbatch * bsz)
     data = data.view(bsz, -1).t().contiguous()
-    
     return data
 
-bptt = 1024
+bptt = 128
+class CustomDataLoader:
+    def __init__(self,source):
+        self.batches = list(range(len(source) - bptt))
+        self.batches = random.shuffle(self.batches)
+        self.data = source
+        
+    def get_batch(source,i):
+        ind = self.batches[i]
+        seq_len = min(bptt,len(self.data)-1-ind)
+        src = self.data[ind:ind+seq_len]
+        tar = self.data[ind+1:ind+1+seq_len].view(-1)
+        return src,tar
+        if(i==len(self.batches)-1):
+            self.batches = random.shuffle(self.batches)
+        return src,tar
+
 def get_batch(source, i):
     seq_len = min(bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
@@ -49,7 +62,6 @@ def plot_multiple(data,legend):
 
 def plot_subplots(data,legends):
     names = ['Accuracy', 'Loss']
-    
     plt.figure(figsize=(10, 5))
     for i in range(len(data)):
         # plt.subplot(200+i)
@@ -63,54 +75,55 @@ def evaluate(eval_model, data_source):
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
     ntokens = 28
+    count = 0
     with torch.no_grad():
-        
-        count = 0
         cum_loss = 0
         acc_count = 0
         accs = 0
         for batch, i in enumerate(range(0, data_source.size(0) - 1, bptt)):
-            data, targets = get_batch(train_data, i)
+            data, targets = get_batch(data_source, i)
             # targets = embs(targets)
             output = model(data)
-            output = output.view(-1,n_tokens)
+            output = output.view(-1,ntokens)
             loss = criterion(output,targets)
             accs += ((torch.argmax(output,dim=1)==targets).sum().item()/output.size(0))
             cum_loss += loss
+            count+=1
         print(epoch,"Loss: ",(cum_loss/count),"Accuracy ",accs/count)
-
-    return cum_loss/ (len(data_source) - 1)
+    return cum_loss/ (count)
 
 if __name__ == '__main__':
     data = []
     dev = torch.device("cuda")
-    procsd_data = load("procesd.npy")
-    train_data =torch.tensor(procsd_data)[:30000]
+    procsd_data = load("Eavg_open.npy")
+    train_data =torch.tensor(procsd_data)[:30000*2]
     print(train_data.shape)
     
-    val_data = torch.tensor(procsd_data)[30000:35000]
-    test_data = torch.tensor(procsd_data)[35000:]
+    val_data = torch.tensor(procsd_data)[30000*2:35000*2]
+    test_data = torch.tensor(procsd_data)[35000*2:]
     train_data = train_data.to(dev)
     val_data = val_data.to(dev)
+    test_data = test_data.to(dev)
 
     batch_size = 16
     ntokens = 28
     train_data = batchify(train_data,batch_size)
     # print(train_data.shape)
-    val_data = batchify(train_data,batch_size)
+    val_data = batchify(val_data,batch_size)
     test_data = batchify(train_data,batch_size)
-    # model = Transformer(n_blocks=3,d_model=64,n_heads=4,d_ff=64,dropout=0.2)
-    model = torch.load("modelb1024")
+    model = Transformer(n_blocks=4,d_model=512,n_heads=8,d_ff=256,dropout=0.5)
+    # model = torch.load("modelb1024")
     model.to(dev)
     
     criterion = nn.CrossEntropyLoss()
-    lr = 0.5 # learning rate
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+    lr = 0.00001 # learning rate
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
-
     accuracies = []
     lossies = []
-    val_loss = float(-inf)
+    val_loss = []
+
     for epoch in range(10000):
         count = 0
         cum_loss = 0
@@ -122,8 +135,6 @@ if __name__ == '__main__':
             output = model(data)
             output = output.view(-1,28)
             loss = criterion(output,targets)
-            # print(output.shape)
-            # print(torch.argmax(output,dim=1).shape)
             accs += ((torch.argmax(output,dim=1)==targets).sum().item()/output.size(0))
             cum_loss += loss
             loss.backward()
@@ -131,16 +142,24 @@ if __name__ == '__main__':
             model.zero_grad()
             optimizer.zero_grad()
             count+=1
-        
+        print(epoch,"Loss: ",(cum_loss/count).item(),"Accuracy ",accs/count)
         if(epoch%50==1):
             lossies.append(cum_loss/count)
             accuracies.append(accs/count)
-            print(epoch,"Loss: ",(cum_loss/count),"Accuracy ",accs/count)
             legend = ["accuracy","Loss"]
             plot_subplots([accuracies,lossies],legend)
-            model.eval()
+            print("Valdata",val_data.shape)
+            eval_loss = evaluate(model,val_data)
+            print(epoch,"Loss: ",(cum_loss/count).item(),"Accuracy ",accs/count," Valid_loss: ",eval_loss)
+            if len(val_loss)>0 and eval_loss < val_loss[-1]:
+                val_loss.append(eval_loss)
+                torch.save(model,"evalModel")
+            else:
+                val_loss.append(eval_loss)
+                torch.save(model,"evalModel")
 
         if(epoch%200)==0:
             torch.save(model,"modela")
 
     
+   
