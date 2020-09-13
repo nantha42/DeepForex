@@ -24,17 +24,18 @@ def plot(data):
     plt.plot(data)
     plt.show()
 
-def plot_multiple(data,legend):
+def plot_multiple(data):
     fig,ax = plt.subplots()
     for line in data:
         print(line)
         plt.plot(list(range(len(line))),line)
-    plt.legend(legend)
+    plt.legend([str(i) for i in range(len(data))])
     plt.show()
 
 if __name__ == '__main__':
     sample_size = 20000
     window_size = 15
+    
     data = get_data("EURUSD30min.csv","Open")[:sample_size]
     mvg = movingaverage(data,window_size)
     expmvg = Expmovingaverage(data,50)

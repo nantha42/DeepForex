@@ -53,7 +53,7 @@ for i in range(1,len(avged_open)):
             if v > 0: bu[i] = 1
             else: be[len(bear)-1-i] = 1
             a = be+bu
-            vector.append(np.argmax(a))
+            vector.append(np.argmax(a)+1)
             f.writelines(str(a)+"\n")
             ans.append(a)
             added = True
@@ -82,7 +82,7 @@ for i in range(1,len(avged_open)):
             if v > 0: bu[i] = 1
             else: be[len(bear)-1-i] = 1
             a = be+bu
-            vector.append(np.argmax(a))
+            vector.append(np.argmax(a)+1)
             # f.writelines(str(a)+"\n")
             ans.append(a)
             added = True
@@ -91,8 +91,9 @@ for i in range(1,len(avged_open)):
     if(added==False):
         not_added +=1
         highs.append(v)
+        # vector.append(28)
 # print(vector[:100])
-print(set(vector))
+print("Set",set(vector))
 v=np.array(vector)
 plot(vector)
 v = v.reshape((len(vector),1))
