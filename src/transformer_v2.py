@@ -15,8 +15,56 @@ import matplotlib.pyplot as plt
 data_file = "../preprocessed/raw.npy"
 save_at = "../models/"
 
-save_model_name = "Mark1"
+save_model_name = "Mark-II-LearningRate"
 
+def t2v(ta, f, out_features, w, b, w0, b0, arg=None):
+    tau = ta.type(torch.FloatTensor)
+    if arg:
+        v1 = f(torch.matmul(tau, w) + b, arg)
+    else:
+        #print(w.shape, t1.shape, b.shape)
+        # print(tau.type(),w.type())
+        print(tau.shape,w.shape,b.shape)
+        v1 = tau*w + b
+    
+    v2 = f(torch.matmul(tau, w0) + b0)
+    #print(v1.shape)
+    return torch.cat([v1, v2], 1)
+
+class SineActivation(nn.Module):
+    def __init__(self, in_features):
+        super(SineActivation, self).__init__()
+        
+        
+        self.w0 = nn.parameter.Parameter(torch.randn(in_features, in_features))
+        self.b0 = nn.parameter.Parameter(torch.randn(1, in_features))
+        
+        self.w = nn.parameter.Parameter(torch.randn(in_features, in_features))
+        self.b = nn.parameter.Parameter(torch.randn(1, in_features))
+        self.f = torch.sin
+
+    def forward(self, ta):
+        tau = ta.type(torch.FloatTensor)
+        # print(tau.shape,self.w0.shape)
+        v1 = torch.matmul(tau,self.w0) + self.b0
+        v2 = self.f(torch.matmul(tau,self.w) + self.b)
+        v1 = v1.view(tau.size(0),tau.size(1),1)
+        v2 = v2.view(tau.size(0),tau.size(1),1)
+        x = torch.cat((v1,v2),-1)
+        return x
+
+
+class Time2Vec(nn.Module):
+    def __init__(self,seq_len):
+        super().__init__()
+        self.seq_len = seq_len
+        self.sineact = SineActivation(seq_len)
+    
+    def forward(self,x):
+        
+        emb = self.sineact(x)
+        return emb
+        
 
 class Embedder(nn.Module):
     def __init__(self, vocab_size, d_model):
@@ -205,9 +253,44 @@ class Decoder(nn.Module):
         self.pe = PositionalEncoder(d_model)
         self.layers = get_clones(DecoderLayer(d_model, heads), N)
         self.norm = Norm(d_model)
+
     def forward(self, trg, e_outputs, src_mask, trg_mask):
         x = self.embed(trg)
         x = self.pe(x)
+        for i in range(self.N):
+            x = self.layers[i](x, e_outputs, src_mask, trg_mask)
+        return self.norm(x)
+
+class EncoderTimeEmbedding(nn.Module):
+    def __init__(self, vocab_size, d_model, N, heads):
+        super().__init__()
+        self.N = N
+        self.embed = Embedder(vocab_size, d_model-2)
+        self.te = Time2Vec(bptt)
+        self.layers = get_clones(EncoderLayer(d_model, heads), N)
+        self.norm = Norm(d_model)
+        
+    def forward(self, src, mask):
+        x = self.embed(src)
+        x_te = self.te(src)
+        x = torch.cat((x,x_te),-1)
+        for i in range(self.N):
+            x = self.layers[i](x, mask)
+        return self.norm(x)
+
+class DecoderTimeEmbedding(nn.Module):
+    def __init__(self, vocab_size, d_model, N, heads):
+        super().__init__()
+        self.N = N
+        self.embed = Embedder(vocab_size, d_model-2)
+        self.te = Time2Vec(bptt//8)
+        self.layers = get_clones(DecoderLayer(d_model, heads), N)
+        self.norm = Norm(d_model)
+
+    def forward(self, trg, e_outputs, src_mask, trg_mask):
+        x = self.embed(trg)
+        x_te = self.te(trg)
+        x = torch.cat((x,x_te),-1)
         for i in range(self.N):
             x = self.layers[i](x, e_outputs, src_mask, trg_mask)
         return self.norm(x)
@@ -217,6 +300,19 @@ class Transformer(nn.Module):
         super().__init__()
         self.encoder = Encoder(src_vocab, d_model, N, heads)
         self.decoder = Decoder(trg_vocab, d_model, N, heads)
+        self.out = nn.Linear(d_model, trg_vocab)
+
+    def forward(self, src, trg, src_mask, trg_mask):
+        e_outputs = self.encoder(src, src_mask)
+        d_output = self.decoder(trg, e_outputs, src_mask, trg_mask)
+        output = self.out(d_output)
+        return output
+
+class TimeEmbeddedTransformer(nn.Module):
+    def __init__(self, src_vocab, trg_vocab, d_model, N, heads):
+        super().__init__()
+        self.encoder = EncoderTimeEmbedding(src_vocab, d_model, N, heads)
+        self.decoder = DecoderTimeEmbedding(trg_vocab, d_model, N, heads)
         self.out = nn.Linear(d_model, trg_vocab)
 
     def forward(self, src, trg, src_mask, trg_mask):
@@ -418,18 +514,18 @@ if __name__ == '__main__':
     test_data = batchify(train_data,batch_size)
     # model = Transformer(n_blocks=3,d_model=256,n_heads=8,d_ff=256,dropout=0.5)
     
-    model = Transformer(ntokens,ntokens,64,2,8)
+    # model = TimeEmbeddedTransformer(ntokens,ntokens,64,2,8)
     
-    # model = torch.load(save_at + "modela")
-    for p in model.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
+    model = torch.load(save_at + "Mark2")
+    # for p in model.parameters():
+    #     if p.dim() > 1:
+    #         nn.init.xavier_uniform_(p)
 
     model.to(dev)
     criterion = nn.CrossEntropyLoss()
-    lr = 0.00001 # learning rate
     
-    optim = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+    
+    optim = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9)
     #########training starts###########
 
     accuracies = []
