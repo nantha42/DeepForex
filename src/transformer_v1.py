@@ -37,7 +37,6 @@ class PositionalEncoder(nn.Module):
                 math.sin(pos / (10000 ** ((2 * i)/d_model)))
                 pe[pos, i + 1] = \
                 math.cos(pos / (10000 ** ((2 * (i + 1))/d_model)))
-                
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
  
@@ -287,7 +286,7 @@ def plot_subplots(data,legends,name):
 def evaluate(eval_model, data_source):
     eval_model.eval() # Turn on the evaluation mode
     total_loss = 0.
-    ntokens = 28
+    ntokens = 860
     count = 0
     with torch.no_grad():
         cum_loss = 0
@@ -348,28 +347,37 @@ def create_padding_mask(seq):
 if __name__ == '__main__':
     data = []
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    procsd_data = load("../dataset/Eavg_open.npy")
-    train_data =torch.tensor(procsd_data)[:30000*2]
-    val_data = torch.tensor(procsd_data)[30000*2:35000*2]
-    test_data = torch.tensor(procsd_data)[35000*2:]
+    procsd_data = load("../dataset/rangedToken.npy")
+    train_data =torch.tensor(procsd_data)[:int(len(procsd_data)*0.70)]
+    val_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.70):int(len(procsd_data)*0.90)]
+    test_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.90):]
     train_data = train_data.to(dev)
     val_data = val_data.to(dev)
     test_data = test_data.to(dev)
 
+    save_model_name = "../models/860Tokens"
+
     batch_size = 32
-    ntokens = 28
+    ntokens = 860
+    d_model = 64
+    N = 3
+    heads = 4
+    
+    
     train_data = batchify(train_data,batch_size)
     val_data = batchify(val_data,batch_size)
     test_data = batchify(train_data,batch_size)
-    model = Transformer(28,28,64,3,4)
-    model = torch.load("modela")
+
+
+    model = Transformer(ntokens,ntokens,d_model,N,heads)
+    # model = torch.load("modela")
+
+    
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
 
     model.to(dev)
-    criterion = nn.CrossEntropyLoss()
-    lr = 0.00001 # learning rate
     
     optim = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
     #########training starts###########
@@ -378,8 +386,11 @@ if __name__ == '__main__':
     lossies = []
     val_loss = []
     val_accuracy = []
+    
     dataLoader = CustomDataLoader(train_data)
-    _onehot = torch.eye(29)
+    
+    
+    
     for epoch in range(500):
         count = 0
         cum_loss = 0
@@ -408,12 +419,16 @@ if __name__ == '__main__':
             optim.step()
             model.zero_grad()
             optim.zero_grad()
-            print(i," Batch Loss", loss.item()," Batch Accuracy ",accuracy," Time taken ",time.time()-hh)
+            if i%10==0:
+                time_takens = time.time()-hh
+                time_takens = " Time taken %s"%(time_takens)
+                epoc = "Epoch %s "%(epoch)
+                print(epoc,i,"/",dataLoader.batchcount()," Batch Loss", loss.item()," Batch Accuracy ",accuracy,time_takens)
             count+=1
             
         data,targets = None,None
         print(epoch,"Loss: ",(cum_loss/count),"Accuracy ",accs/count," Time Taken: ",time.time()-s)
-        if(epoch%3==0):
+        if(epoch%1==0):
             lossies.append(cum_loss/count)
             accuracies.append(accs/count)
             legend = ["accuracy","Loss"]
@@ -426,9 +441,9 @@ if __name__ == '__main__':
             print(epoch,"Loss: ",(cum_loss/count),"Accuracy ",accs/count," Valid_loss: ",eval_loss," Valid_accuracy: ",eval_acc)
             if len(val_loss)>0 and eval_loss < val_loss[-1]:
                 val_loss.append(eval_loss)
-                torch.save(model,"evalModel")
+                torch.save(model,save_model_name)
             else:
                 val_loss.append(eval_loss)
-                torch.save(model,"evalModel")
+                torch.save(model,save_model_name)
         if(epoch%5==0):
-            torch.save(model,"modela")
+            torch.save(model,"Trained_model")

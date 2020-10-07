@@ -24,7 +24,7 @@ def t2v(ta, f, out_features, w, b, w0, b0, arg=None):
     else:
         #print(w.shape, t1.shape, b.shape)
         # print(tau.type(),w.type())
-        print(tau.shape,w.shape,b.shape)
+        # print(tau.shape,w.shape,b.shape)
         v1 = tau*w + b
     
     v2 = f(torch.matmul(tau, w0) + b0)
@@ -46,11 +46,13 @@ class SineActivation(nn.Module):
     def forward(self, ta):
         tau = ta.type(torch.FloatTensor)
         # print(tau.shape,self.w0.shape)
+        
         v1 = torch.matmul(tau,self.w0) + self.b0
         v2 = self.f(torch.matmul(tau,self.w) + self.b)
         v1 = v1.view(tau.size(0),tau.size(1),1)
         v2 = v2.view(tau.size(0),tau.size(1),1)
         x = torch.cat((v1,v2),-1)
+        
         return x
 
 
@@ -63,6 +65,7 @@ class Time2Vec(nn.Module):
     def forward(self,x):
         
         emb = self.sineact(x)
+        emb = emb.masked_fill(x.unsqueeze(-1)==0,0)
         return emb
         
 
@@ -71,10 +74,16 @@ class Embedder(nn.Module):
         super().__init__()
         # print(vocab_size,d_model)
         self.embed = nn.Embedding(vocab_size+1, d_model,padding_idx=0)
+
     def forward(self, x):
         # print(x.shape)
         # print("Embed",self.embed(x).shape)
-        return self.embed(x)
+        
+        embedded = self.embed(x)
+        embedded = embedded.masked_fill(x.unsqueeze(-1)==0,0)
+        
+        return embedded
+        
 
 class PositionalEncoder(nn.Module):
     def __init__(self, d_model, max_seq_len = 500):
@@ -90,7 +99,6 @@ class PositionalEncoder(nn.Module):
                 math.sin(pos / (10000 ** ((2 * i)/d_model)))
                 pe[pos, i + 1] = \
                 math.cos(pos / (10000 ** ((2 * (i + 1))/d_model)))
-                
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
  
@@ -104,6 +112,7 @@ class PositionalEncoder(nn.Module):
 def attention(q, k, v, d_k, mask=None, dropout=None):
     
     scores = torch.matmul(q, k.transpose(-2, -1)) /  math.sqrt(d_k)
+    
     if mask is not None:
         mask = mask.unsqueeze(1)
         scores = scores.masked_fill(mask == 0, -1e9)
@@ -176,6 +185,7 @@ class Norm(nn.Module):
         self.alpha = nn.Parameter(torch.ones(self.size))
         self.bias = nn.Parameter(torch.zeros(self.size))
         self.eps = eps
+
     def forward(self, x):
         norm = self.alpha * (x - x.mean(dim=-1, keepdim=True)) \
         / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
@@ -220,8 +230,7 @@ class DecoderLayer(nn.Module):
         x2 = self.norm_1(x)
         x = x + self.dropout_1(self.attn_1(x2, x2, x2, trg_mask))
         x2 = self.norm_2(x)
-        x = x + self.dropout_2(self.attn_2(x2, e_outputs, e_outputs,
-        src_mask))
+        x = x + self.dropout_2(self.attn_2(x2, e_outputs, e_outputs,src_mask))
         x2 = self.norm_3(x)
         x = x + self.dropout_3(self.ff(x2))
         return x
@@ -320,6 +329,24 @@ class TimeEmbeddedTransformer(nn.Module):
         d_output = self.decoder(trg, e_outputs, src_mask, trg_mask)
         output = self.out(d_output)
         return output
+
+class TE_TransformerComputationSave(nn.Module):
+    def __init__(self,src_vocab, trg_vocab, d_model, N, heads):
+        super().__init__()
+        self.encoder = EncoderTimeEmbedding(src_vocab, d_model, N, heads)
+        self.decoder = DecoderTimeEmbedding(trg_vocab,d_model,N,heads)
+        self.out = nn.Linear(d_model, trg_vocab)
+        self.e_output = None
+
+    def encode(self,src,src_mask):
+        self.e_output = self.encoder(src,src_mask)
+        return self.e_output
+    
+    def decode(self,trg,src_mask,trg_mask):
+        d_output = self.decoder(trg, self.e_output,src_mask, trg_mask)
+        output = self.out(d_output)
+        return output
+
 
 
 def batchify(data, bsz):
@@ -463,10 +490,15 @@ def create_masks(src, trg):
     src_mask = (src != 0).unsqueeze(-2)
     if trg is not None:
         trg_mask = (trg != 0).unsqueeze(-2)
+        # print("Target Mask")
+        # print(trg_mask)
         size = trg.size(1) # get seq_len for matrix
         # print("Sequence lenght in mask ",size)
         # print(trg.device,src.device)
+
         np_mask = nopeak_mask(size,trg.is_cuda)
+        # print("Np mask")
+        # print(np_mask)
         # print(np_mask.shape,trg_mask.shape)
         # if trg.is_cuda:
         #     np_mask.cuda()
@@ -490,12 +522,11 @@ if __name__ == '__main__':
     # print(set(procsd_data[:,0]))
     # print(procsd_data.shape)
     
-    
     train_data =torch.tensor(procsd_data)[:int(len(procsd_data)*0.70)]
     val_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.70):int(len(procsd_data)*0.90)]
     test_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.90):]
     
-    print(train_data)
+    # print(train_data)
     train_data = train_data.contiguous()
     if torch.cuda.is_available():
         train_data = train_data.to(dev)
@@ -516,7 +547,7 @@ if __name__ == '__main__':
     
     # model = TimeEmbeddedTransformer(ntokens,ntokens,64,2,8)
     
-    model = torch.load(save_at + "Mark2")
+    model = torch.load(save_at + "EvalMark-II-LearningRate")
     # for p in model.parameters():
     #     if p.dim() > 1:
     #         nn.init.xavier_uniform_(p)
@@ -534,8 +565,8 @@ if __name__ == '__main__':
     val_accuracy = []
     dataLoader = CustomDataLoader(train_data)
     dataLoader.get_batch_from_batches(0)
-    for epoch in range(100):
-        
+
+    for epoch in range(50):
         count = 0
         cum_loss = 0
         acc_count = 0
@@ -564,7 +595,7 @@ if __name__ == '__main__':
 
             accuracy = ((torch.argmax(output,dim=1)==(trg_output-1) ).sum().item()/output.size(0))
             accs += accuracy
-            cum_loss += loss.item();
+            cum_loss += loss.item()
             loss.backward()
             optim.step()
             model.zero_grad()
