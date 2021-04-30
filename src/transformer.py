@@ -48,10 +48,10 @@ class ScaledDotProductAttention(nn.Module):
         # print(q.shape,k.shape,v.shape)
         attn = torch.bmm(q, k.transpose(Dim.seq, Dim.feature))
         attn = attn / math.sqrt(d_k)
-        attn = torch.exp(attn)
         # log_size(attn, "attention weight") 
         
         if mask is not None: attn = attn.masked_fill(mask, 0)
+        attn = torch.exp(attn)
         attn = attn / attn.sum(dim=-1, keepdim=True)
         attn = self.dropout(attn)
         output = torch.bmm(attn, v)
@@ -74,7 +74,7 @@ class AttentionHead(nn.Module):
         V = self.value_tfm(values) # (Batch, Seq, Feature)
         # log_size(Q, "queries, keys, vals")
         # compute multiple attention weighted sums
-        x = self.attn(Q, K, V)
+        x = self.attn(Q, K, V,mask)
         return x
 
 class MultiHeadAttention(nn.Module):
@@ -163,7 +163,7 @@ class TransformerEncoder(nn.Module):
     
     def forward(self, x: torch.FloatTensor, mask=None):
         for encoder in self.encoders:
-            x = encoder(x)
+            x = encoder(x,mask)
         return x
 
 class DecoderBlock(nn.Module):
@@ -249,7 +249,7 @@ class WordPositionEmbedding(nn.Module):
     def forward(self, x: torch.LongTensor, mask=None) -> torch.FloatTensor:
         a = self.word_embedding(x)
         b = self.position_embedding(x)
-        
+
         # print(a.shape,b.shape)
         return a + b
 

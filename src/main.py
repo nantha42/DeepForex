@@ -1,8 +1,8 @@
-
 import random 
 import torch
 from torch import nn
 from torch import tensor
+
 class brain(nn.Module):
     def __init__(self,I,O):
         super(brain,self).__init__()
@@ -146,11 +146,9 @@ for i in range(10000):
 
     else:
         steps+=1
+
 act = len(actions)
 x,y= lizard_pos[0],lizard_pos[1]
 
-# print(actions[-10:])
 print(f"Actions = {act} Reward = {max_reward} steps = {steps} lizardpos = {x} {y}")
-# print(len(actions),"Reward: ",reward)
-# print(epsilon,wrong)
 print()

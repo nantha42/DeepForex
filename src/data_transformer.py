@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import tkinter
 import numpy as np
-import torch
+# import torch
 import time
 from essential_functions import *
 # from mpl_finance import candlestick_ohlc
@@ -17,35 +17,50 @@ def get_data(files,ptype):
         f.close()
     return data
 
+
+if __name__ == '__main__':
+    data = get_data(["../Dataset/EURUSD30min.csv"],"Open")
+    sample = np.array(data[:72])
+    sample -= sample[0]
+    sample = sample*1e5
+    sample /= 50
+    sample = np.array(sample,dtype=int)
+    sample += 120+1
+
+    plot(sample)
+    plot(data[:72])
+    # print(sample)
+
+
     
-if __name == '__main__':
-    open_data = get_data(["../Dataset/EURUSD30min.csv","../Dataset/EURUSD30min2015-17.csv","../Dataset/EURUSD30min2018-20.csv"],"Volume")
-    seq_len = 128+16
-
-    low = 0
-    high = 0 
-    start = 0.0
-    hp = 0.0
-    lp = 0.0
-    count = 0
-    avg = 0.0
-    out = set()
-
-    vol = 0
-    hvol = 0
-    mvol = 1e12
-    for i in range(len(open_data)):
-        if open_data[i] != 0:
-            vol += open_data[i]
-            hvol = max(hvol,open_data[i])
-            mvol = min(mvol,open_data[i])
-            count+=1
-    print("Average",vol/count)
-    print(hvol)
-    print(mvol)
-    5143046950.85835
-    290900614868.1644
-        379999.9952
+# if __name == '__main__':
+#     open_data = get_data(["../Dataset/EURUSD30min.csv","../Dataset/EURUSD30min2015-17.csv","../Dataset/EURUSD30min2018-20.csv"],"Volume")
+#     seq_len = 128+16
+#
+#     low = 0
+#     high = 0
+#     start = 0.0
+#     hp = 0.0
+#     lp = 0.0
+#     count = 0
+#     avg = 0.0
+#     out = set()
+#
+#     vol = 0
+#     hvol = 0
+#     mvol = 1e12
+#     for i in range(len(open_data)):
+#         if open_data[i] != 0:
+#             vol += open_data[i]
+#             hvol = max(hvol,open_data[i])
+#             mvol = min(mvol,open_data[i])
+#             count+=1
+#     print("Average",vol/count)
+#     print(hvol)
+#     print(mvol)
+#     5143046950.85835
+#     290900614868.1644
+#         379999.9952
 
     # for i in range(len(open_data)-seq_len):
     #     a = time.time()

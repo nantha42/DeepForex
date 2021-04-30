@@ -2,20 +2,20 @@ import torch
 import torch.nn as nn
 import math
 from transformer_v2 import *
+from matplotlib import pyplot as plt
 import pygame as py
-from simulator import *
+from simulator1 import *
 from collections import namedtuple
 from collections import OrderedDict
 import torch.nn.functional as F
 import torch.nn as nn
-from matplotlib import pyplot as plt
+
 import torch.optim as optim
-import random
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
-save_at = "../Plots/"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def plot_subplots(data,legends,name):
     names = ['Accuracy', 'Loss']
     plt.figure(figsize=(10, 5))
@@ -24,10 +24,8 @@ def plot_subplots(data,legends,name):
         plt.plot(list(range(0,len(data[i]))),data[i])
         plt.title(legends[i])
         plt.xlabel("Episodes")
-    plt.savefig(save_at + name)
-    plt.clf()
-
-
+    plt.savefig(name)
+    plt.clf();
 
 def plot_multiple(data,legend):
     fig,ax = plt.subplots()
@@ -67,9 +65,6 @@ class ReplayMemory(object):
                 self.memory[self.position] = transition
                 self.position = (self.position + 1) % self.capacity
 
-
-        
-
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
     
@@ -104,38 +99,6 @@ class DQN(nn.Module):
         
         return self.softmax(o)
 
-#Factory Reset
-# class DQN1(nn.Module):
-#     def __init__(self,inp,hidden,out,nhiddenlayers=4):
-#         super().__init__()
-#         self.layer1 = nn.Linear(inp,hidden)
-#         self.activation1 = nn.ReLU()
-#         self.hidden_layers = []
-#         count = 0
-#         for x in range(nhiddenlayers):
-#             count+=2
-#             self.hidden_layers.append((str(count-2), nn.Linear(hidden,hidden)))
-#             self.hidden_layers.append((str(count-1),nn.Dropout(0.1)) )
-
-#         self.hidden_layers = nn.Sequential(OrderedDict(self.hidden_layers))
-#         # self.hidden_layers = [nn.Linear(hidden,hidden),nn.Dropout() for x in range(nhiddenlayers)]
-#         self.layer3 = nn.Linear(hidden,out)
-#         self.softmax = nn.Softmax()
-#         pass
-
-#     def forward(self,x):
-#         # state = x[:,-1]
-#         # x = x[:,:-1]
-#         # embedded_state = self.state_embedder(state.type(torch.LongTensor))
-
-#         # x = torch.cat([x,embedded_state],dim=-1)
-#         # print("Modified x ",x)
-#         o = self.activation1(self.layer1(x))
-#         o = self.hidden_layers(o)
-#         o = self.layer3(o)
-#         # return o
-#         return self.softmax(o)
-
 class DQN1(nn.Module):
     def __init__(self,inp,hidden,out,nhiddenlayers=4):
         super().__init__()
@@ -168,6 +131,7 @@ class DQN1(nn.Module):
         o = self.softmax(self.layer3(o))
         self.activations.append(o.clone().detach())
         return o
+
 
 class DQN_Memory(nn.Module):
     def __init__(self,inp,hidden,out,nhiddenlayers=4):
@@ -221,18 +185,17 @@ class DQN_Memory(nn.Module):
         return o
     
 
-
 n_actions = 4
-BATCH_SIZE = 30
-GAMMA = 0.90
-EPS_START = 0.09
-EPS_END = 0.01
-EPS_DECAY = 1000
+BATCH_SIZE = 2048
+GAMMA = 0.99
+EPS_START = 0.01
+EPS_END = 0.02
+EPS_DECAY = 40000
 TARGET_UPDATE = 10
 steps_done = 0
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 outputs = []
-memory = ReplayMemory(5000)
+memory = ReplayMemory(8000)
 
 eps_threshold_state = 0
 
@@ -241,32 +204,25 @@ def optimize_model():
         return
 
     transitions = memory.sample(BATCH_SIZE)
-    # transitions = memory.sample(len(memory))
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
+    
     batch = Transition(*zip(*transitions))
-
-    # Compute a mask of non-final states and concatenate the batch elements
-    # (a final state would've been the one after which simulation ended)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
     non_final_next_states = torch.cat([s for s in batch.next_state
                                                 if s is not None]).type(torch.FloatTensor)
-    # print("Non_final_net_states shape ",non_final_next_states.shape)
-    state_batch = torch.cat(batch.state).type(torch.FloatTensor)
-    action_batch = torch.cat(batch.action).type(torch.FloatTensor)
-    reward_batch = torch.cat(batch.reward).type(torch.FloatTensor)
-    
+    non_final_next_states = non_final_next_states.to(device)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken. These are the actions which would've been taken
-    # for each batch state according to policy_net
-    # policy_net.train()
-    # target_net.train()
+    
+    state_batch = torch.cat(batch.state).type(torch.FloatTensor)
+    action_batch = torch.cat(batch.action).type(torch.int64)
+    reward_batch = torch.cat(batch.reward).type(torch.FloatTensor)
+    state_batch = state_batch.to(device)
+    action_batch = action_batch.to(device)
+    reward_batch = reward_batch.to(device)
+    
     policy_net.train()
     target_net.train()
-    state_action_values = policy_net(state_batch).gather(1, action_batch.type(torch.int64))
+    state_action_values = policy_net(state_batch).gather(1, action_batch)
 
     # Compute V(s_{t+1}) for all next states.
     # Expected values of actions for non_final_next_states are computed based
@@ -277,7 +233,10 @@ def optimize_model():
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
 
     # print("Next State values",next_state_values.shape)
-    next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+    
+    nnex = target_net(non_final_next_states)
+    nnex = nnex.max(1)[0]
+    next_state_values[non_final_mask] = nnex.detach()
     # Compute the expected Q values
     # print("Next State values",next_state_values.shape," Reward_batch ",reward_batch.shape)
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
@@ -299,41 +258,43 @@ def optimize_model():
 def predict_transformer(data):
     # data = sims.window[0]# taking only the open prices
     data = ((data-data[0])*1e5)//50 + 120 + 1
-    data = data.type(torch.LongTensor)
-    # print(data)
-    enc_inp,tar_inp = data[:64],data[64:]
     
-    # print(enc_inp,tar_inp)
+    data = data.type(torch.LongTensor).to(device)
+    enc_inp,tar_inp = data[:64].to(device),data[64:].to(device)
+    
     enc_inp = enc_inp.reshape(1,-1)
     tar_inp = tar_inp.reshape(1,-1)
-
+    # print(enc_inp,tar_inp)
     src_mask,tar_mask = create_masks(enc_inp,tar_inp)
+    # print(src_mask,tar_mask)
     # print(src_mask,tar_mask)
     prediction_model.eval()
     output = prediction_model(enc_inp,tar_inp,src_mask,tar_mask)
     return output
 
-num_episodes = 1000
 
-SAVE_INDEX = 1000
-LOAD_INDEX = 17
+num_episodes = 5000
+
+SAVE_INDEX = 20
+LOAD_INDEX = 20
 LOAD_FROM_FILE = True
 SAVE_TO_FILE = False
 TRAIN = False
 VISUALIZE = True
 SAVE_GRAPH = False
 take_random_actions = False
-
+models_dir = ""
 sims = Simulator(VISUALIZE)
-sims.set_data("../dataset/EURUSD30min2015-17.csv")
-prediction_model = torch.load("../models/EvalMark-II-LearningRate-BenchMark-I")
+sims.set_data(models_dir+"../Dataset/EURUSD30min2015-17.csv")
+prediction_model = torch.load(models_dir+"../models/EvalMark-II-LearningRate-BenchMark-I").to(device)
 
-save_plot_name = "../models/DQN12_2.png"
+save_plot_name = models_dir+"../Plots/DQN20.png"
 SAVE_FILENAME = "DQN"
 LOAD_FILENAME = "DQN"
 
 def select_action(state):
     global steps_done
+    
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
@@ -342,34 +303,37 @@ def select_action(state):
     # print(eps_threshold_state)
     if sample > eps_threshold or not take_random_actions:
         with torch.no_grad():
+            # print("State ",state)
+            state = state.to(device)
+            state = state.type(torch.FloatTensor).to(device)
             y = policy_net(state)
-            p = y.max(1)[0]
-            # if p > 0.7:
-            x = y.max(1)[1].view(1, 1)
-            # else:
-            #     x = torch.tensor([[0]])
+            x =  y.max(1)[1]
+            x = x.view(1, 1).to(device)
             outputs.append(x)
-            return x,p
+            return x
     else:
-        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long),0
+        
+        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
 
 if LOAD_FROM_FILE:
     policy_net = torch.load("../models/"+LOAD_FILENAME+"_policy"+str(LOAD_INDEX),map_location=device)
     target_net = torch.load("../models/"+LOAD_FILENAME+"_target"+str(LOAD_INDEX),map_location=device)
     # target_net.load_state_dict(policy_net.state_dict())
 else:
-    policy_net= DQN1(12,20,4,6)
-    target_net= DQN1(12,20,4,6)
+    policy_net= DQN1(15,128,4,2).to(device)
+    target_net= DQN1(15,128,4,2).to(device)
+    policy_net.required_inputs = ["prediction","balance_tensor","equity_tensor","new_profit_tensor","profit_change_tensor","state_tensor","position_opened_type","opened_time"]
     target_net.load_state_dict(policy_net.state_dict())
+    target_net.to(device)
 
-
-optimizer = optim.RMSprop(policy_net.parameters(),lr=0.01)
+optimizer = optim.RMSprop(policy_net.parameters(),lr=0.0001)
 
 losses = []
 rewards = []
+total_rewards = []
+
 prev_state = None
 prev_output = None
-
 
 for episode in range(num_episodes):
     sims.reset()
@@ -378,7 +342,7 @@ for episode in range(num_episodes):
     new_profit = 0
     balance = 0
     outputs = []
-
+    
     with torch.no_grad():
         output = predict_transformer(sims.window[0])
     predicted = torch.argmax(output,dim=-1)
@@ -388,13 +352,40 @@ for episode in range(num_episodes):
     
     #*******************************************
     predicted = predicted - predicted[0][0]
-    new_profit_tensor = torch.tensor([[0]])
-    profit_change_tensor = torch.tensor([[0]])
-    state_tensor = torch.tensor([[state]])
-    balance_tensor = torch.tensor([[0]])
+    new_profit_tensor = torch.tensor([[0]]).to(device)
+    profit_change_tensor = torch.tensor([[0]]).to(device)
+    state_tensor = torch.tensor([[state]]).to(device)
+    balance_tensor = torch.tensor([[0]]).to(device)
+    position_opened_type = torch.tensor([[0]]).to(device)
+    if sims.buy_position != None:
+        position_opened_type = torch.tensor([[0.5]]).to(device)
+    elif sims.sell_position != None:
+        position_opened_type = torch.tensor([[1]]).to(device)
+    
+    all_inputs = {
+                "prediction":predicted,
+                "balance_tensor":balance_tensor,
+                "equity_tensor":sims.equity.clone().detach(),
+                "new_profit_tensor":new_profit_tensor,
+                "profit_change_tensor":profit_change_tensor,
+                "state_tensor":state_tensor,
+                "position_opened_type":position_opened_type,
+                "opened_time":sims.opened_time
+        }
+    # print(all_inputs)
+    
+    dq_state = torch.tensor(predicted).to(device)
+    for inp in policy_net.required_inputs:
+        if inp != "prediction":
+            # print(dq_state,all_inputs[inp])
+            # print("1Added ",inp)
 
-    dq_state = torch.cat( (predicted,balance_tensor,new_profit_tensor, profit_change_tensor,state_tensor ),dim=-1).type(torch.FloatTensor)
+            
+            dq_state = torch.cat([dq_state,torch.tensor([[all_inputs[inp]]]).to(device) ],dim=-1).to(device)
+    # print(dq_state.shape)
+    # dq_state = torch.cat( (predicted,balance_tensor,new_profit_tensor, profit_change_tensor,state_tensor ),dim=-1).to(device).type(torch.FloatTensor)
     #*******************************************
+    dq_state.to(device)
     all_states = torch.tensor(dq_state.view(1,-1))
     buys  = 0
     sells = 0
@@ -402,54 +393,74 @@ for episode in range(num_episodes):
     no_actions = 0
     avg_losses = 0
     all_outputs = torch.tensor(predicted)
-    current_rewards = []
+    
+    total_reward = 0
     tt1 = time.time()
-
     for steps in range(1000):
         policy_net.eval()
         target_net.eval()
-        action_selected,prob = select_action(dq_state.type(torch.FloatTensor))
+        # print(dq_state.shape)
 
+        action_selected = select_action(dq_state)
         if(action_selected==0):
             no_actions+=1
         if(action_selected==1):
-            buys +=1
-            # if prob > 0.6:
-            #     print("Buy",prob)
+            buys +=1 
         if action_selected==2:
             sells+=1
-            # if prob > 0.6:
-                # print("Sell",prob)
-            # print("Sell",prob)
         if action_selected == 3:
             closed+=1
-            # print("Close",prob)
 
         state,new_profit,current_reward= sims.step(action_selected[0][0])
-        current_rewards.append(current_reward)
+        total_reward += current_reward
+        # current_rewards.append(current_reward)
         balance = sims.balance.item()
+        
         with torch.no_grad():
             output = predict_transformer(sims.window[0])
         
         predicted = torch.argmax(output,dim=-1)
-        all_outputs = torch.cat((all_outputs,predicted),dim=0)
+        all_outputs = torch.cat((all_outputs,predicted),dim=0).to(device)
 
         #*******************************************
         predicted = predicted - predicted[0][0]
-        new_profit_tensor = torch.tensor([[new_profit]])
-        profit_change_tensor = torch.tensor([[new_profit - profit]])
-        balance_tensor = torch.tensor([[balance]])
-        state_tensor = torch.tensor([[state]])
-        
-        next_state = torch.cat((predicted,balance_tensor,new_profit_tensor,profit_change_tensor , state_tensor  ),dim = -1).type(torch.FloatTensor)
+        new_profit_tensor = torch.tensor([[new_profit]]).to(device)
+        profit_change_tensor = torch.tensor([[new_profit - profit]]).to(device)
+        balance_tensor = torch.tensor([[balance]]).to(device)
+        state_tensor = torch.tensor([[state]]).to(device)
+
+        position_opened_type = torch.tensor([[0]]).to(device)
+        if sims.buy_position != None:
+            position_opened_type = torch.tensor([[0.5]]).to(device)
+        elif sims.sell_position != None:
+            position_opened_type = torch.tensor([[1]]).to(device)
+        all_inputs = {
+                    "prediction":predicted,
+                    "balance_tensor":balance_tensor,
+                    "equity_tensor":sims.equity.clone().detach().to(device),
+                    "new_profit_tensor":new_profit_tensor,
+                    "profit_change_tensor":profit_change_tensor,
+                    "state_tensor":state_tensor,
+                    "position_opened_type":position_opened_type,
+                    "opened_time":sims.opened_time
+            }
+        next_state = torch.tensor(predicted).to(device)
+        for inp in policy_net.required_inputs:
+            if inp != "prediction":
+                # print(next_state,all_inputs[inp])
+                next_state = torch.cat([next_state,torch.tensor([[all_inputs[inp]]]).to(device) ],dim=-1)
+        # next_state = torch.cat((predicted,balance_tensor,new_profit_tensor,profit_change_tensor , state_tensor  ),dim = -1).to(device).type(torch.FloatTensor)
         # print(steps,action_selected,new_profit_tensor,profit_change_tensor)
+        
         profit = new_profit
         #*******************************************
-        current_reward  = torch.tensor([current_reward])
+        current_reward  = torch.tensor([current_reward]).to(device)
         memory.push(dq_state,action_selected,next_state,current_reward)
         dq_state = next_state.clone().detach()
-        all_states = torch.cat((all_states,dq_state.view(1,-1)))
+        dq_state.to(device)
+        # all_states = torch.cat((all_states,dq_state.view(1,-1))).to(device)
         
+        # print("Balance",balance)
         loss = 0
         if TRAIN:
             loss = optimize_model()
@@ -466,18 +477,17 @@ for episode in range(num_episodes):
                 w.append(policy_net.activations[p])
             
             sims.plot_weights(w)
-            # sims.plot_weights(policy_net.activations)
             py.display.update()
-            sims.clock.tick(130)
+            sims.clock.tick(60)
+
     balances = sims.balance_history
     equities = sims.equity_history
-    plot_multiple([balances,equities],["balance","equity"])
+    plot_multiple([balances, equities], ["balance", "equity"])
     # if prev_state == None:
     #     prev_state = all_states
     # else:
     #     print(prev_state==all_states)
     #     prev_state = all_states
-
     # if prev_output == None:
     #     prev_output = all_outputs
     #     print("All Outputs shape",all_outputs.shape)
@@ -485,18 +495,17 @@ for episode in range(num_episodes):
     #     print("All Outputs shape",all_outputs.shape,prev_output.shape)
     #     print(prev_output==all_outputs)
     #     prev_output = all_outputs
-
-    if episode%20==19:
+    if episode%10==9:
         target_net.load_state_dict(policy_net.state_dict())
+    total_rewards.append(total_reward)
     eps_threshold_state = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
-    print("%d No action: %d Buys: %d Sells: %d Closed: %d Balance: %d EPS: %f %f"%(episode,no_actions, buys,sells,closed,sims.balance,eps_threshold_state,time.time()-tt1),)
-    print("Successfull buys: %d Successfull sells: %d Trades: %d"%(sims.successfull_buys,sims.successfull_sells,len(sims.history_orders) ))
+    print("%d No action: %d Buys: %d Sells: %d Closed: %d Balance: %d EPS: %f %f %s"%(episode,no_actions, buys,sells,closed,sims.balance,eps_threshold_state,time.time()-tt1,time.ctime()),)
+    
     losses.append(avg_losses/steps)
     rewards.append(balance)
     if SAVE_GRAPH:
-        plot_subplots([losses,rewards,current_rewards],["loss","balance","rewards"],save_plot_name)
+        plot_subplots([losses,rewards,total_rewards],["loss","balance","rewards"],save_plot_name)
     # print(loss,balance)
-    break
     if SAVE_TO_FILE and episode%5==0:
-        torch.save(policy_net,"../models/"+SAVE_FILENAME+"_policy"+str(SAVE_INDEX))
-        torch.save(target_net,"../models/"+SAVE_FILENAME+"_target"+str(SAVE_INDEX))
+        torch.save(policy_net,models_dir+SAVE_FILENAME+"_policy"+str(SAVE_INDEX))
+        torch.save(target_net,models_dir+SAVE_FILENAME+"_target"+str(SAVE_INDEX))

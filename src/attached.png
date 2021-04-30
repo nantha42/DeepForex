@@ -1,0 +1,121 @@
+digraph {
+	graph [size="14.549999999999999,14.549999999999999"]
+	node [align=left fontsize=12 height=0.2 ranksep=0.1 shape=box style=filled]
+	4792336272 [label=AddBackward0 fillcolor=darkolivegreen1]
+	4369751888 -> 4792336272
+	4369751888 [label=AddmmBackward]
+	4792410256 -> 4369751888
+	4792410256 [label="
+ (5)" fillcolor=lightblue]
+	4792410320 -> 4369751888
+	4792410320 [label=ClampBackward]
+	4792410576 -> 4792410320
+	4792410576 [label=AddmmBackward]
+	4792411024 -> 4792410576
+	4792411024 [label="
+ (3)" fillcolor=lightblue]
+	4792410832 -> 4792410576
+	4792410832 [label=ClampBackward]
+	4792411216 -> 4792410832
+	4792411216 [label=AddmmBackward]
+	4792411344 -> 4792411216
+	4792411344 [label="
+ (3)" fillcolor=lightblue]
+	4792410640 -> 4792411216
+	4792410640 [label=ClampBackward]
+	4792411472 -> 4792410640
+	4792411472 [label=AddmmBackward]
+	4792411600 -> 4792411472
+	4792411600 [label="
+ (3)" fillcolor=lightblue]
+	4792411152 -> 4792411472
+	4792411152 [label=ClampBackward]
+	4792411856 -> 4792411152
+	4792411856 [label=AddmmBackward]
+	4792411984 -> 4792411856
+	4792411984 [label="
+ (3)" fillcolor=lightblue]
+	4792411536 -> 4792411856
+	4792411536 [label=TBackward]
+	4792412176 -> 4792411536
+	4792412176 [label="
+ (3, 5)" fillcolor=lightblue]
+	4792411664 -> 4792411472
+	4792411664 [label=TBackward]
+	4792411792 -> 4792411664
+	4792411792 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792411280 -> 4792411216
+	4792411280 [label=TBackward]
+	4792411408 -> 4792411280
+	4792411408 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792410896 -> 4792410576
+	4792410896 [label=TBackward]
+	4792410704 -> 4792410896
+	4792410704 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792410384 -> 4369751888
+	4792410384 [label=TBackward]
+	4792410512 -> 4792410384
+	4792410512 [label="
+ (5, 3)" fillcolor=lightblue]
+	4792336336 -> 4792336272
+	4792336336 [label=AddmmBackward]
+	4792410448 -> 4792336336
+	4792410448 [label="
+ (5)" fillcolor=lightblue]
+	4792410768 -> 4792336336
+	4792410768 [label=ClampBackward]
+	4792412368 -> 4792410768
+	4792412368 [label=AddmmBackward]
+	4792412432 -> 4792412368
+	4792412432 [label="
+ (3)" fillcolor=lightblue]
+	4792412048 -> 4792412368
+	4792412048 [label=ClampBackward]
+	4792412688 -> 4792412048
+	4792412688 [label=AddmmBackward]
+	4792412816 -> 4792412688
+	4792412816 [label="
+ (3)" fillcolor=lightblue]
+	4792412304 -> 4792412688
+	4792412304 [label=ClampBackward]
+	4792413072 -> 4792412304
+	4792413072 [label=AddmmBackward]
+	4792413200 -> 4792413072
+	4792413200 [label="
+ (3)" fillcolor=lightblue]
+	4792412752 -> 4792413072
+	4792412752 [label=ClampBackward]
+	4792413456 -> 4792412752
+	4792413456 [label=AddmmBackward]
+	4792413584 -> 4792413456
+	4792413584 [label="
+ (3)" fillcolor=lightblue]
+	4792413136 -> 4792413456
+	4792413136 [label=TBackward]
+	4792413776 -> 4792413136
+	4792413776 [label="
+ (3, 5)" fillcolor=lightblue]
+	4792413264 -> 4792413072
+	4792413264 [label=TBackward]
+	4792413392 -> 4792413264
+	4792413392 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792412880 -> 4792412688
+	4792412880 [label=TBackward]
+	4792413008 -> 4792412880
+	4792413008 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792412496 -> 4792412368
+	4792412496 [label=TBackward]
+	4792412624 -> 4792412496
+	4792412624 [label="
+ (3, 3)" fillcolor=lightblue]
+	4792411088 -> 4792336336
+	4792411088 [label=TBackward]
+	4792412112 -> 4792411088
+	4792412112 [label="
+ (5, 3)" fillcolor=lightblue]
+}

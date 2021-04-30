@@ -2,7 +2,7 @@ from transformer import *
 from essential_functions import *
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
-import ast 
+import ast
 from numpy import load
 import torch.nn as nn
 import time

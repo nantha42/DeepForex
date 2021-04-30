@@ -6,6 +6,7 @@ from torch import nn
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 import ast
+
 from numpy import load
 import torch.nn as nn
 import random
@@ -34,8 +35,6 @@ def t2v(ta, f, out_features, w, b, w0, b0, arg=None):
 class SineActivation(nn.Module):
     def __init__(self, in_features):
         super(SineActivation, self).__init__()
-        
-        
         self.w0 = nn.parameter.Parameter(torch.randn(in_features, in_features))
         self.b0 = nn.parameter.Parameter(torch.randn(1, in_features))
         
@@ -45,14 +44,11 @@ class SineActivation(nn.Module):
 
     def forward(self, ta):
         tau = ta.type(torch.FloatTensor)
-        # print(tau.shape,self.w0.shape)
-        
         v1 = torch.matmul(tau,self.w0) + self.b0
         v2 = self.f(torch.matmul(tau,self.w) + self.b)
         v1 = v1.view(tau.size(0),tau.size(1),1)
         v2 = v2.view(tau.size(0),tau.size(1),1)
         x = torch.cat((v1,v2),-1)
-        
         return x
 
 
@@ -63,7 +59,6 @@ class Time2Vec(nn.Module):
         self.sineact = SineActivation(seq_len)
     
     def forward(self,x):
-        
         emb = self.sineact(x)
         emb = emb.masked_fill(x.unsqueeze(-1)==0,0)
         return emb
@@ -528,6 +523,7 @@ if __name__ == '__main__':
     
     # print(train_data)
     train_data = train_data.contiguous()
+
     if torch.cuda.is_available():
         train_data = train_data.to(dev)
         val_data = val_data.to(dev)
@@ -543,8 +539,8 @@ if __name__ == '__main__':
     # print(train_data.shape)
     val_data = batchify(val_data,batch_size)
     test_data = batchify(train_data,batch_size)
+
     # model = Transformer(n_blocks=3,d_model=256,n_heads=8,d_ff=256,dropout=0.5)
-    
     # model = TimeEmbeddedTransformer(ntokens,ntokens,64,2,8)
     
     model = torch.load(save_at + "EvalMark-II-LearningRate")
@@ -554,7 +550,6 @@ if __name__ == '__main__':
 
     model.to(dev)
     criterion = nn.CrossEntropyLoss()
-    
     
     optim = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9)
     #########training starts###########

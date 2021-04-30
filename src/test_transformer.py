@@ -3,23 +3,12 @@ from essential_functions import *
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 import ast 
+from torchviz import make_dot
+from transformer_v2 import *
 from numpy import load
 import torch.nn as nn
 import time
 
-class Transformer(nn.Module):
-    def __init__(self,n_blocks=2,d_model=64,n_heads=4,d_ff=256,dropout=0.2):
-        super().__init__()
-        self.emb = WordPositionEmbedding(vocab_size = 28,d_model=64)
-        self.encoder = TransformerEncoder(n_blocks=2,d_model=64,n_heads=4,d_ff=256,dropout=0.2)
-        self.decoder = TransformerDecoder(n_blocks=2,d_model=64,d_feature=16,n_heads=4,d_ff=256,dropout=0.2)
-    
-    def forward(self,x):
-        g = self.emb(x[:-1])
-        x = self.encoder(g)
-        p = self.emb(x[1:])
-        y = self.decoder(p, x[1:])
-        return y;
 
 def batchify(data, bsz):
     nbatch = data.size(0) // bsz
@@ -28,102 +17,96 @@ def batchify(data, bsz):
     return data
 
 
-bptt = 35
-def get_batch(source, i):
-    seq_len = min(bptt, len(source) - 1 - i)
-    data = source[i:i+seq_len]
-    target = source[i+1:i+1+seq_len].view(-1)
-    return data, target
-
-def evaluate(eval_model, data_source):
-    eval_model.eval() # Turn on the evaluation mode
-    total_loss = 0.0
-    ntokens = 28
-    with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, bptt):
-            data, targets = get_batch(data_source, i)
-            output = eval_model(data)
-            output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
-    return total_loss / (len(data_source) - 1)
-
-def train():
-    model.train() # Turn on the train mode
-    total_loss = 0.
-    start_time = time.time()
-    ntokens = 28
-    for batch, i in enumerate(range(0, train_data.size(0) - 1, bptt)):
-        data, targets = get_batch(train_data, i)
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output.view(-1, ntokens), targets)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-        optimizer.step()
-        total_loss += loss.item()
-        log_interval = 10
-        if batch % log_interval == 0 and batch > 0:
-            # print(output[:10])
-            cur_loss = total_loss / log_interval
-            elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | '
-                  'lr {:02.2f} | ms/batch {:5.2f} | '
-                  'loss {:5.2f} | ppl {:8.2f}'.format(
-                    epoch, batch, len(train_data) // bptt, scheduler.get_lr()[0],
-                    elapsed * 1000 / log_interval,
-                    cur_loss, math.exp(cur_loss)))
-            total_loss = 0
-            start_time = time.time()
-
 if __name__ == '__main__':
-    data = []
-    device = torch.device("cpu")
-    procsd_data = load("../dataset/procesd.npy")
-    train_data =torch.tensor(procsd_data)[:30000]
-    val_data = torch.tensor(procsd_data)[30000:35000]
-    test_data = torch.tensor(procsd_data)[35000:]
-    
+    model_name = "EvalMark-II-LearningRate"
+    data_file = "raw.npy"
+    model = torch.load("../models/"+model_name)
+    # make_dot(prediction_model).render("attached", format="png")
+    procsd_data = load("../preprocessed/"+data_file)
+    model_name = "Mark-II-Layer-1"
+    train_data =torch.tensor(procsd_data)[:int(len(procsd_data)*0.70)]
+    val_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.70):int(len(procsd_data)*0.90)]
+    test_data = torch.tensor(procsd_data)[int(len(procsd_data)*0.90):]
+
+    train_data = train_data.contiguous()
+    if torch.cuda.is_available():
+        train_data = train_data.to(dev)
+        val_data = val_data.to(dev)
+        test_data = test_data.to(dev)
+
     batch_size = 32
-    ntokens = 28
+    ntokens = 240
     train_data = batchify(train_data,batch_size)
-    val_data = batchify(train_data,batch_size)
+    # print(train_data.shape)
+    val_data = batchify(val_data,batch_size)
     test_data = batchify(train_data,batch_size)
-    emsize = 8 # embedding dimension
-    nhid = 200 # the dimension of the feedforward network model in nn.TransformerEncoder
-    nlayers = 4 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-    nhead = 4 # the number of heads in the multiheadattention models
-    dropout = 0.2 # the dropout value
-    model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, dropout).to(device)
-    # model = Transformer(n_blocks=2,d_model=64,n_heads=4,d_ff=256,dropout=0.2)
-    criterion = nn.CrossEntropyLoss()
-    lr = 0.05 # learning rate
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
+    dataLoader = CustomDataLoader(val_data)
+    # dataLoader.get_batch_from_batches(0)
+    print("Batch Count",dataLoader.batchcount())
 
-    best_val_loss = float("inf")
-    epochs = 10 # The number of epochs
-    best_model = None
 
-    for epoch in range(1, epochs + 1):
-        epoch_start_time = time.time()
-        train()
-        val_loss = evaluate(model, val_data)
-        # print('-' * 89)
-        # print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-        #     'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-        #                                 val_loss, math.exp(val_loss)))
-        # print('-' * 89)
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model = model
-
-        # scheduler.step()
-    # input_data = torch.tensor(inps[:1000])
-    # output_data = torch.tensor(outs[:1000])
+    tdata,ttar = dataLoader.get_batch_from_batches(0)
     
-    # train_ds = TensorDataset(input_data,output_data)
-    # train_dl = DataLoader(train_ds,)
+    # print(tdata,ttar)
+    tdata.shape,ttar.shape
+    tdata = tdata.transpose(0,1).contiguous().type(torch.LongTensor)
+    tar = ttar.transpose(0,1).contiguous().type(torch.LongTensor)
+    tdata.shape,tar.shape
 
-    # print(input_data.shape)
+
+    s_inp = tdata[3].view(1,-1)
+    s_tar = tar[3]
+
+    s_tar_inp = s_tar[:-1].view(1,-1)
+    s_tar_out = s_tar[1:].view(1,-1)
+
     
+    
+    # print(s_inp)
+    # print(s_tar_inp)
+    model.eval()
+
+    print("S_TAR_INP",s_tar_inp)
+    clone_inp = s_tar_inp.clone().detach()
+    clone_inp[:,1:] = 0
+    print("Clone ",clone_inp)
+    src_mask,tar_mask = create_masks(s_inp,clone_inp)
+    print(src_mask)
+    print(tar_mask)
+
+    for i in range(7): 
+        # clone_inp[:,6:] = 0
+        with torch.no_grad():
+            src_mask,tar_mask = create_masks(s_inp,clone_inp)
+            out = model(s_inp,clone_inp,src_mask,tar_mask)
+            out = out.view(-1,out.size(-1))
+            nexx = torch.argmax(out,dim=1).tolist()
+            print("Blone",clone_inp.tolist())
+            print("Clone",nexx)
+            clone_inp[0,i+1] = nexx[i]
+            print("Clone",clone_inp)
+        # break;
+        
+    plot_multiple([clone_inp.tolist()[0],nexx,s_tar_out.tolist()[0]],["input","predicted","actual"])
+    # out.shape 
+    # out = model(s_inp,s_tar_inp,src_mask,tar_mask)
+    # out = out.view(-1,out.size(-1))
+
+    # print(out.shape,s_tar_out.shape)
+    # print(torch.nn.functional.cross_entropy(out,s_tar_out[0]-1))
+    # print(torch.argmax(out,dim=1))
+    # print(s_tar_out-1)
+    # print(s_inp.tolist()[0],s_tar.tolist())
+    # print(s_inp.tolist()[0]+s_tar.tolist())
+
+    # print("Error    ",s_tar_out.tolist()[0])
+    # print("Predicted",torch.argmax(out,dim=1).tolist())
+    # previous_seq = s_inp.tolist()[0]
+    # previous_seq.append(s_tar.tolist()[0])
+    # print(previous_seq)
+    # plot_multiple([previous_seq + s_tar_out.tolist()[0],previous_seq+ torch.argmax(out,dim=1).tolist()],legend=["actual","predicted"])
+    # actual = s_inp.tolist()[0] + s_tar_out.tolist()
+    # predicted = s_inp.tolist()[0] + torch.argmax(out,dim=1).tolist() 
+    # print(actual)
+    # print(predicted)
+    # plot_multiple([actual,predicted],legend=["actual","predicted"])

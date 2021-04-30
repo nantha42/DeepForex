@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+from torchviz import make_dot
 class TwoLayer(torch.nn.Module):
     
     def __init__(self,D_in,H,D_out):
@@ -19,41 +19,40 @@ class TwoLayer(torch.nn.Module):
         pred = self.output_layer(o)
         return pred
 
+class Test(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.t1 = TwoLayer(5,3,5)
+        self.t2 = TwoLayer(5,3,5)
+        self.partial = None
 
-class MyReLU(torch.autograd.Function):
-
-    @staticmethod
-    def forward(ctx,input):
-        ctx.save_for_backward(input)
-        return input.clamp(min=0)
+    def encode(self,x):
+        self.partial = self.t1(x)
     
-    @staticmethod 
-    def backward(ctx,grad_output):
-        input, = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad_input[input<0] =0
-        return grad_input
+    def decode(self,y):
+        a = self.t2(y)
+        return a+self.partial
 
+mod = Test()
+q = torch.randn(10,5)
+c = torch.randn(10,5)
+mod.encode(q)
+print("Encoded")
+out = mod.decode(c)
+j = torch.randn(10,5)
+diff = out-j
+print(diff)
+loss = diff.sum()
+# print(dir(mod.t1.))
+# for p in mod.t1.hidden_layer.parameters():
+#     print(dir(p))
+#     print(p.grad)
 
-x = torch.randn(300,30)
-y = torch.randn(300,30)
-model = TwoLayer(30,1000,30)
-loss_fn = torch.nn.MSELoss(reduction='sum')
-optim = torch.optim.Adam(model.parameters(), lr = 0.001)
-
-for i in range(1000):
-    pred = model(x)
-    loss = loss_fn(pred,y)
-    optim.zero_grad()
-    loss.backward()
-    optim.step()
-    if(i%200==0):
-        print(pred,y)
-
-
-
-print(y)
-print(model(x))
-
-
-
+    # print(p.weight.grad)
+# print(mod.t1.hidden_layer.parameters())
+# print(mod.t1.hidden_layer.parameters()[0].grad)
+loss.backward()
+for p in mod.t1.parameters():
+    print(p,p.grad)
+for p in mod.t2.hidden_layer.parameters():
+    print(p.grad)
