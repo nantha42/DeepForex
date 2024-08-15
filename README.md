@@ -2,11 +2,11 @@
 
 This project focuses on the development of a computer program that aims to generate consistent profits in the Stock and Forex markets. While achieving consistent profitability in financial trading remains a challenge, advancements in deep reinforcement learning and the application of transformer models provide promising opportunities for scientific traders, data scientists, and data analysts.
 
-*Update*
-# Published Paper
+
+# Published Paper (*Update - 08/14/2024*)
 We have published a paper detailing the approach and results of this project. You can read it for more in-depth information on our methodology and findings:
 
-"[Transformer-Based Reinforcement Learning for Forex Trading](https://link.springer.com/chapter/10.1007/978-981-97-3526-6_14)
+[Transformer-Based Reinforcement Learning for Forex Trading](https://link.springer.com/chapter/10.1007/978-981-97-3526-6_14)
 
 # Abstract
 In this project, we propose a novel approach using a combination of the Transformer model and Deep Q-Network (DQN) for making trades by a trading agent. The traditional approach to financial trading often relies on trend analysis and historical patterns. However, we introduce an alternative learning algorithm that leverages the power of transformer models to improve financial trading outcomes.
